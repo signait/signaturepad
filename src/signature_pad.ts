@@ -38,6 +38,8 @@ export interface Options extends Partial<PointGroupOptions> {
   velocityFilterWeight?: number;
   backgroundColor?: string;
   throttle?: number;
+  transform?: (x: number, y: number) => [number, number];
+  usePointerEvents?: boolean;
 }
 
 export interface PointGroup extends PointGroupOptions {
@@ -54,17 +56,20 @@ export default class SignaturePad extends SignatureEventTarget {
   public velocityFilterWeight: number;
   public backgroundColor: string;
   public throttle: number;
+  public transform?: (x: number, y: number) => [number, number];
+  public usePointerEvents?: boolean;
 
   // Private stuff
   /* tslint:disable: variable-name */
   private _ctx: CanvasRenderingContext2D;
-  private _drawningStroke: boolean;
+  private _drawingStroke: boolean;
   private _isEmpty: boolean;
   private _lastPoints: Point[]; // Stores up to 4 most recent points; used to generate a new curve
   private _data: PointGroup[]; // Stores all points in groups (one group per line or dot)
   private _lastVelocity: number;
   private _lastWidth: number;
   private _strokeMoveUpdate: (event: SignatureEvent) => void;
+  private _pointerID?: number;
   /* tslint:enable: variable-name */
 
   constructor(private canvas: HTMLCanvasElement, options: Options = {}) {
@@ -79,6 +84,8 @@ export default class SignaturePad extends SignatureEventTarget {
     this.dotSize = options.dotSize || 0;
     this.penColor = options.penColor || 'black';
     this.backgroundColor = options.backgroundColor || 'rgba(0,0,0,0)';
+    this.transform = options.transform;
+    this.usePointerEvents = options.usePointerEvents == false ? false : true;
 
     this._strokeMoveUpdate = this.throttle
       ? throttle(SignaturePad.prototype._strokeUpdate, this.throttle)
@@ -158,7 +165,7 @@ export default class SignaturePad extends SignatureEventTarget {
 
     // The "Scribble" feature of iOS intercepts point events. So that we can lose some of them when tapping rapidly.
     // Use touch events for iOS platforms to prevent it. See https://developer.apple.com/forums/thread/664108 for more information.
-    if (window.PointerEvent && !isIOS) {
+    if (window.PointerEvent && this.usePointerEvents && !isIOS) {
       this._handlePointerEvents();
     } else {
       this._handleMouseEvents();
@@ -215,21 +222,21 @@ export default class SignaturePad extends SignatureEventTarget {
 
   // Event handlers
   private _handleMouseDown = (event: MouseEvent): void => {
-    if (event.buttons === 1) {
-      this._drawningStroke = true;
+    if (event.button === 0) {
+      this._drawingStroke = true;
       this._strokeBegin(event);
     }
   };
 
   private _handleMouseMove = (event: MouseEvent): void => {
-    if (this._drawningStroke) {
+    if (this._drawingStroke) {
       this._strokeMoveUpdate(event);
     }
   };
 
   private _handleMouseUp = (event: MouseEvent): void => {
-    if (event.buttons === 1 && this._drawningStroke) {
-      this._drawningStroke = false;
+    if (event.button === 0 && this._drawingStroke) {
+      this._drawingStroke = false;
       this._strokeEnd(event);
     }
   };
@@ -240,7 +247,10 @@ export default class SignaturePad extends SignatureEventTarget {
 
     if (event.targetTouches.length === 1) {
       const touch = event.changedTouches[0];
+      this._pointerID = touch.identifier;
       this._strokeBegin(touch);
+    } else {
+      this._pointerID = undefined;
     }
   };
 
@@ -248,35 +258,43 @@ export default class SignaturePad extends SignatureEventTarget {
     // Prevent scrolling.
     event.preventDefault();
 
-    const touch = event.targetTouches[0];
-    this._strokeMoveUpdate(touch);
+    if (this._pointerID !== undefined) {
+      const touch = event.targetTouches.item(this._pointerID);
+      if (touch) {
+        this._strokeMoveUpdate(touch);
+      }
+    }
   };
 
   private _handleTouchEnd = (event: TouchEvent): void => {
     const wasCanvasTouched = event.target === this.canvas;
-    if (wasCanvasTouched) {
+    if (wasCanvasTouched && this._pointerID !== undefined) {
       event.preventDefault();
 
-      const touch = event.changedTouches[0];
-      this._strokeEnd(touch);
+      const touch = event.changedTouches.item(this._pointerID);
+      if (touch) {
+        this._strokeEnd(touch);
+
+        this._pointerID = undefined;
+      }
     }
   };
 
   private _handlePointerStart = (event: PointerEvent): void => {
-    this._drawningStroke = true;
+    this._drawingStroke = true;
     event.preventDefault();
     this._strokeBegin(event);
   };
 
   private _handlePointerMove = (event: PointerEvent): void => {
-    if (this._drawningStroke) {
+    if (this._drawingStroke) {
       event.preventDefault();
       this._strokeMoveUpdate(event);
     }
   };
 
   private _handlePointerEnd = (event: PointerEvent): void => {
-    this._drawningStroke = false;
+    this._drawingStroke = false;
     const wasCanvasTouched = event.target === this.canvas;
     if (wasCanvasTouched) {
       event.preventDefault();
@@ -313,8 +331,8 @@ export default class SignaturePad extends SignatureEventTarget {
       new CustomEvent('beforeUpdateStroke', { detail: event }),
     );
 
-    const x = event.clientX;
-    const y = event.clientY;
+    let x = event.clientX;
+    let y = event.clientY;
     const pressure =
       (event as PointerEvent).pressure !== undefined
         ? (event as PointerEvent).pressure
@@ -322,6 +340,12 @@ export default class SignaturePad extends SignatureEventTarget {
         ? (event as Touch).force
         : 0;
 
+    if (this.transform) {
+      const point = this.transform(x, y);
+      x = point[0];
+      y = point[1];
+    }
+    
     const point = this._createPoint(x, y, pressure);
     const lastPointGroup = this._data[this._data.length - 1];
     const lastPoints = lastPointGroup.points;
@@ -370,7 +394,7 @@ export default class SignaturePad extends SignatureEventTarget {
   }
 
   private _handlePointerEvents(): void {
-    this._drawningStroke = false;
+    this._drawingStroke = false;
 
     this.canvas.addEventListener('pointerdown', this._handlePointerStart);
     this.canvas.addEventListener('pointermove', this._handlePointerMove);
@@ -378,7 +402,7 @@ export default class SignaturePad extends SignatureEventTarget {
   }
 
   private _handleMouseEvents(): void {
-    this._drawningStroke = false;
+    this._drawingStroke = false;
 
     this.canvas.addEventListener('mousedown', this._handleMouseDown);
     this.canvas.addEventListener('mousemove', this._handleMouseMove);
