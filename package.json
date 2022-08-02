@@ -16,8 +16,8 @@
   "scripts": {
     "build": "npm run lint && npm run clean && rollup --config && npm run emit-types && npm run update-docs",
     "build:final": "npm run clean && rollup --config && npm run emit-types",
-    "clean": "del dist",
-    "emit-types": "del dist/types && tsc src/signature_pad.ts --lib DOM,ES2015 --declaration --declarationDir dist/types --emitDeclarationOnly",
+    "clean": "del-cli dist",
+    "emit-types": "del-cli dist/types && tsc src/signature_pad.ts --lib DOM,ES2015 --declaration --declarationDir dist/types --emitDeclarationOnly",
     "format": "prettier --write {src,tests}/**/*.{js,ts}",
     "lint": "eslint {src,tests}/**/*.ts",
     "prepublishOnly": "npm run build",
