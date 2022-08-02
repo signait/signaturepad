@@ -25,7 +25,7 @@
     "start": "npm run build && npm run serve",
     "test": "jest --coverage",
     "update-docs": "cp-cli dist/signature_pad.umd.js docs/js/signature_pad.umd.js",
-    "prepare": "husky install && npm run build:final"
+    "prepare": "npm run build:final"
   },
   "repository": {
     "type": "git",
