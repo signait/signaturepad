@@ -155,6 +155,15 @@
         };
     }
 
+    function findTouch(touches, id) {
+        for (let i = 0; i < touches.length; i++) {
+            const touch = touches.item(i);
+            if ((touch === null || touch === void 0 ? void 0 : touch.identifier) === id) {
+                return touch;
+            }
+        }
+        return null;
+    }
     class SignaturePad extends SignatureEventTarget {
         constructor(canvas, options = {}) {
             super();
@@ -190,7 +199,7 @@
             this._handleTouchMove = (event) => {
                 event.preventDefault();
                 if (this._pointerID !== undefined) {
-                    const touch = event.targetTouches.item(this._pointerID);
+                    const touch = findTouch(event.targetTouches, this._pointerID);
                     if (touch) {
                         this._strokeMoveUpdate(touch);
                     }
@@ -200,7 +209,7 @@
                 const wasCanvasTouched = event.target === this.canvas;
                 if (wasCanvasTouched && this._pointerID !== undefined) {
                     event.preventDefault();
-                    const touch = event.changedTouches.item(this._pointerID);
+                    const touch = findTouch(event.changedTouches, this._pointerID);
                     if (touch) {
                         this._strokeEnd(touch);
                         this._pointerID = undefined;
@@ -364,14 +373,7 @@
             const { penColor, dotSize, minWidth, maxWidth } = lastPointGroup;
             if (!lastPoint || !(lastPoint && isLastPointTooClose)) {
                 const curve = this._addPoint(point);
-                if (!lastPoint) {
-                    this._drawDot(point, {
-                        penColor,
-                        dotSize,
-                        minWidth,
-                        maxWidth,
-                    });
-                }
+                if (!lastPoint) ;
                 else if (curve) {
                     this._drawCurve(curve, {
                         penColor,

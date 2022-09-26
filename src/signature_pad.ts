@@ -14,6 +14,17 @@ import { BasicPoint, Point } from './point';
 import { SignatureEventTarget } from './signature_event_target';
 import { throttle } from './throttle';
 
+function findTouch(touches: TouchList, id: number): Touch | null {
+  for (let i = 0; i < touches.length; i++) {
+    const touch = touches.item(i);
+    if (touch?.identifier === id) {
+      return touch;
+    }
+  }
+
+  return null;
+}
+
 declare global {
   interface CSSStyleDeclaration {
     msTouchAction: string | null;
@@ -259,7 +270,7 @@ export default class SignaturePad extends SignatureEventTarget {
     event.preventDefault();
 
     if (this._pointerID !== undefined) {
-      const touch = event.targetTouches.item(this._pointerID);
+      const touch = findTouch(event.targetTouches, this._pointerID);
       if (touch) {
         this._strokeMoveUpdate(touch);
       }
@@ -271,7 +282,7 @@ export default class SignaturePad extends SignatureEventTarget {
     if (wasCanvasTouched && this._pointerID !== undefined) {
       event.preventDefault();
 
-      const touch = event.changedTouches.item(this._pointerID);
+      const touch = findTouch(event.changedTouches, this._pointerID);
       if (touch) {
         this._strokeEnd(touch);
 
@@ -345,7 +356,7 @@ export default class SignaturePad extends SignatureEventTarget {
       x = point[0];
       y = point[1];
     }
-    
+
     const point = this._createPoint(x, y, pressure);
     const lastPointGroup = this._data[this._data.length - 1];
     const lastPoints = lastPointGroup.points;
@@ -361,12 +372,12 @@ export default class SignaturePad extends SignatureEventTarget {
       const curve = this._addPoint(point);
 
       if (!lastPoint) {
-        this._drawDot(point, {
-          penColor,
-          dotSize,
-          minWidth,
-          maxWidth,
-        });
+        // this._drawDot(point, {
+        //   penColor,
+        //   dotSize,
+        //   minWidth,
+        //   maxWidth,
+        // });
       } else if (curve) {
         this._drawCurve(curve, {
           penColor,
